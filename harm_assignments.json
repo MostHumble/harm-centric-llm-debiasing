@@ -1,0 +1,17 @@
+{
+    "meta-llama/Llama-2-7b-chat-hf": [
+        "DEROGATORY",
+        "TOXICITY",
+        "DIRECT_DISCRIMINATION"
+    ],
+    "mistralai/Mixtral-8x7B-Instruct-v0.1": [
+        "STEREOTYPING",
+        "MISREPRESENTATION",
+        "INDIRECT_DISCRIMINATION"
+    ],
+    "01-ai/Yi-6B-Chat": [
+        "ERASURE",
+        "EXCLUSIONARY",
+        "DISPARATE_PERFORMANCE"
+    ]
+} 
