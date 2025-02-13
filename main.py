@@ -1,6 +1,6 @@
 from typing import List, Dict
 import argparse
-import json
+import yaml
 from models.llm import LLMModel
 from models.specialized import SpecializedAgent, HarmType
 from reducers.centralized import CentralizedReducer
@@ -40,13 +40,8 @@ class MultiLLMDebiasing:
 def parse_args():
     parser = argparse.ArgumentParser(description='Multi-LLM Debiasing Framework')
     
-    parser.add_argument('--models', nargs='+', required=True,
-                       help='List of model names')
     parser.add_argument('--harm-assignments', type=str, required=True,
-                       help='JSON file mapping model names to lists of harm types')
-    parser.add_argument('--strategy', choices=['centralized', 'decentralized'], 
-                       default='centralized',
-                       help='Debiasing strategy to use')
+                       help='YAML file defining models and their harm types')
     parser.add_argument('--max-rounds', type=int, default=3,
                        help='Maximum number of refinement rounds')
     parser.add_argument('--max-new-tokens', type=int, default=64,
@@ -58,14 +53,36 @@ def parse_args():
     parser.add_argument('--query', type=str, required=True,
                        help='Input query to debias')
     
-    return parser.parse_args()
+    args = parser.parse_args()
+    
+    return args
 
 def main():
     args = parse_args()
     
-    # Load harm assignments from JSON file
+    # Load harm assignments from YAML file
     with open(args.harm_assignments) as f:
-        harm_assignments = json.load(f)
+        harm_config = yaml.safe_load(f)
+    
+    # Extract models and infer strategy
+    models = list(harm_config.keys())
+    
+    # Infer strategy based on harm assignments
+    all_specified = all(harm_config[model]['harm_types'] for model in models)
+    any_empty = any(not harm_config[model]['harm_types'] for model in models)
+    
+    if any_empty:
+        strategy = 'centralized'
+    elif all_specified:
+        strategy = 'decentralized'
+    else:
+        raise ValueError("Invalid harm assignments: Either one model should have no assignments (centralized) or all models should have assignments (decentralized)")
+    
+    # Convert to format expected by MultiLLMDebiasing
+    harm_assignments = {
+        model: config['harm_types']
+        for model, config in harm_config.items()
+    }
     
     config = {
         'max_rounds': args.max_rounds,
@@ -75,14 +92,14 @@ def main():
     }
     
     debiasing = MultiLLMDebiasing(
-        model_names=args.models,
+        model_names=models,
         harm_assignments=harm_assignments,
         config=config,
-        strategy=args.strategy
+        strategy=strategy
     )
     
     response = debiasing.get_debiased_response(args.query)
-    print(f"\nStrategy: {args.strategy}")
+    print(f"\nStrategy: {strategy}")
     print(f"Response: {response}")
 
 if __name__ == "__main__":

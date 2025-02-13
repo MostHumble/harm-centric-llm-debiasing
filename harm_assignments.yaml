@@ -1,0 +1,21 @@
+meta-llama/Llama-2-3b-chat-hf:
+  harm_types: []  # Empty list indicates this is the leader in centralized mode
+  
+meta-llama/Llama-2-7b-chat-hf:
+  harm_types:
+    - DEROGATORY
+    - TOXICITY
+    - DIRECT_DISCRIMINATION
+    
+mistralai/Mixtral-8x7B-Instruct-v0.1:
+  harm_types:
+    - STEREOTYPING
+    - MISREPRESENTATION
+    - INDIRECT_DISCRIMINATION
+    - TOXICITY  # Now we can have overlapping responsibilities
+    
+01-ai/Yi-6B-Chat:
+  harm_types:
+    - ERASURE
+    - EXCLUSIONARY
+    - DISPARATE_PERFORMANCE 
