@@ -1,10 +1,11 @@
-from typing import List, Dict
+from typing import List, Dict, Tuple
 import argparse
 import yaml
 from models.llm import LLMModel
 from models.specialized import SpecializedAgent, HarmType
 from reducers.centralized import CentralizedReducer
 from reducers.decentralized import DecentralizedReducer
+from prompts.harm_prompts import HARM_DESCRIPTIONS
 
 class MultiLLMDebiasing:
     def __init__(self, model_names: List[str], harm_assignments: Dict[str, List[str]], 
@@ -57,32 +58,71 @@ def parse_args():
     
     return args
 
-def main():
-    args = parse_args()
+def process_harm_assignments(config_path: str) -> Tuple[List[str], Dict[str, List[str]], str]:
+    """
+    Process and validate the harm assignments YAML file.
     
-    # Load harm assignments from YAML file
-    with open(args.harm_assignments) as f:
+    Returns:
+        Tuple containing:
+        - List of model names
+        - Dictionary of harm assignments
+        - Strategy ('centralized' or 'decentralized')
+    
+    Raises:
+        ValueError: If harm assignments are invalid or don't cover all harm types
+    """
+    # Load YAML config
+    with open(config_path) as f:
         harm_config = yaml.safe_load(f)
     
-    # Extract models and infer strategy
+    # Extract models
     models = list(harm_config.keys())
-    
-    # Infer strategy based on harm assignments
-    all_specified = all(harm_config[model]['harm_types'] for model in models)
-    any_empty = any(not harm_config[model]['harm_types'] for model in models)
-    
-    if any_empty:
-        strategy = 'centralized'
-    elif all_specified:
-        strategy = 'decentralized'
-    else:
-        raise ValueError("Invalid harm assignments: Either one model should have no assignments (centralized) or all models should have assignments (decentralized)")
     
     # Convert to format expected by MultiLLMDebiasing
     harm_assignments = {
         model: config['harm_types']
         for model, config in harm_config.items()
     }
+    
+    # Determine strategy
+    all_specified = all(harm_assignments[model] for model in models)
+    any_empty = any(not harm_assignments[model] for model in models)
+    
+    if any_empty and all_specified:
+        raise ValueError("Invalid configuration: Cannot have both empty and non-empty harm assignments")
+    
+    if any_empty:
+        strategy = 'centralized'
+        # Validate only one model has empty assignments
+        if sum(1 for harms in harm_assignments.values() if not harms) != 1:
+            raise ValueError("Centralized mode requires exactly one model with empty harm assignments")
+    elif all_specified:
+        strategy = 'decentralized'
+    else:
+        raise ValueError("Invalid harm assignments: Either one model should have no assignments (centralized) or all models should have assignments (decentralized)")
+    
+    # Validate that all harm types are covered
+    all_assigned_harms = set()
+    for harms in harm_assignments.values():
+        all_assigned_harms.update(harms)
+    
+    all_possible_harms = set(HARM_DESCRIPTIONS.keys())
+    
+    uncovered_harms = all_possible_harms - all_assigned_harms
+    if uncovered_harms:
+        raise ValueError(f"The following harm types are not covered by any model: {uncovered_harms}")
+    
+    unknown_harms = all_assigned_harms - all_possible_harms
+    if unknown_harms:
+        raise ValueError(f"The following assigned harm types are not recognized: {unknown_harms}")
+    
+    return models, harm_assignments, strategy
+
+def main():
+    args = parse_args()
+    
+    # Process harm assignments
+    models, harm_assignments, strategy = process_harm_assignments(args.harm_assignments)
     
     config = {
         'max_rounds': args.max_rounds,
