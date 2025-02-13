@@ -1,30 +1,23 @@
 from typing import List, Dict, Tuple
 import argparse
 import yaml
-from models.llm import LLMModel
-from models.specialized import SpecializedAgent, HarmType
-from reducers.centralized import CentralizedReducer
-from reducers.decentralized import DecentralizedReducer
-from prompts.harm_prompts import HARM_DESCRIPTIONS
+from models import LLMModel, SpecializedAgent
+from reducers import CentralizedReducer, DecentralizedReducer
+from prompts import HARM_DESCRIPTIONS
 
 class MultiLLMDebiasing:
-    def __init__(self, model_names: List[str], harm_assignments: Dict[str, List[str]], 
-                 config: Dict, strategy: str = "centralized"):
-        if strategy not in ["centralized", "decentralized"]:
-            raise ValueError(f"Unknown strategy: {strategy}")
-            
+    def __init__(self, harm_assignments: Dict[str, List[str]], config: Dict, strategy: str = "centralized"):
         # Create specialized agents
         self.specialized_agents = []
         
-        for i, model_name in enumerate(model_names):
+        for i, model_name in enumerate(harm_assignments.keys()):
             model = LLMModel(model_name)
             
             # In centralized mode, first model (leader) gets all harm types
             if strategy == "centralized" and i == 0:
-                harm_types = {harm_type for harm_type in HarmType}
+                harm_types = set(HARM_DESCRIPTIONS.keys())
             else:
-                harm_types = {HarmType[harm.upper()] 
-                            for harm in harm_assignments.get(model_name, [])}
+                harm_types = set(harm_assignments.get(model_name, []))
                 
             self.specialized_agents.append(SpecializedAgent(model, harm_types))
         
@@ -58,13 +51,12 @@ def parse_args():
     
     return args
 
-def process_harm_assignments(config_path: str) -> Tuple[List[str], Dict[str, List[str]], str]:
+def process_harm_assignments(config_path: str) -> Tuple[Dict[str, List[str]], str]:
     """
     Process and validate the harm assignments YAML file.
     
     Returns:
         Tuple containing:
-        - List of model names
         - Dictionary of harm assignments
         - Strategy ('centralized' or 'decentralized')
     
@@ -75,31 +67,21 @@ def process_harm_assignments(config_path: str) -> Tuple[List[str], Dict[str, Lis
     with open(config_path) as f:
         harm_config = yaml.safe_load(f)
     
-    # Extract models
-    models = list(harm_config.keys())
-    
-    # Convert to format expected by MultiLLMDebiasing
     harm_assignments = {
         model: config['harm_types']
         for model, config in harm_config.items()
     }
     
     # Determine strategy
-    all_specified = all(harm_assignments[model] for model in models)
-    any_empty = any(not harm_assignments[model] for model in models)
+    empty_count = sum(1 for harms in harm_assignments.values() if not harms)
     
-    if any_empty and all_specified:
-        raise ValueError("Invalid configuration: Cannot have both empty and non-empty harm assignments")
+    if empty_count > 1:
+        raise ValueError("Invalid configuration: At most one model can have empty harm assignments")
     
-    if any_empty:
+    if empty_count == 1:
         strategy = 'centralized'
-        # Validate only one model has empty assignments
-        if sum(1 for harms in harm_assignments.values() if not harms) != 1:
-            raise ValueError("Centralized mode requires exactly one model with empty harm assignments")
-    elif all_specified:
-        strategy = 'decentralized'
     else:
-        raise ValueError("Invalid harm assignments: Either one model should have no assignments (centralized) or all models should have assignments (decentralized)")
+        strategy = 'decentralized'
     
     # Validate that all harm types are covered
     all_assigned_harms = set()
@@ -116,13 +98,12 @@ def process_harm_assignments(config_path: str) -> Tuple[List[str], Dict[str, Lis
     if unknown_harms:
         raise ValueError(f"The following assigned harm types are not recognized: {unknown_harms}")
     
-    return models, harm_assignments, strategy
+    return harm_assignments, strategy
 
 def main():
     args = parse_args()
     
-    # Process harm assignments
-    models, harm_assignments, strategy = process_harm_assignments(args.harm_assignments)
+    harm_assignments, strategy = process_harm_assignments(args.harm_assignments)
     
     config = {
         'max_rounds': args.max_rounds,
@@ -132,7 +113,6 @@ def main():
     }
     
     debiasing = MultiLLMDebiasing(
-        model_names=models,
         harm_assignments=harm_assignments,
         config=config,
         strategy=strategy
