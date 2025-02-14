@@ -9,6 +9,7 @@ class BiasReducer:
         self.config = config
 
     def _get_feedback(self, agent: SpecializedAgent, response: str) -> str:
+        # To fix: We already have the chat format here, so we must clean this
         feedback_prompt = get_feedback_prompt(response)
         return agent.get_response(
             feedback_prompt,
@@ -24,14 +25,9 @@ class CentralizedReducer(BiasReducer):
     def reduce_bias(self, query: str) -> str:
         leader = self.specialized_agents[0]
         followers = self.specialized_agents[1:]
-
-        messages = [
-            {"role": "system", "content": LEADER_PROMPT},
-            {"role": "user", "content": query}
-        ]
         
-        current_response = leader.model.generate(
-            messages,
+        current_response = leader.get_response(
+            query,
             max_new_tokens=self.config['max_new_tokens'],
             temperature=self.config['temperature']
         )
