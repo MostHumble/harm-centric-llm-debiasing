@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, List
 
 HARM_DESCRIPTIONS: Dict[str, str] = {
     # Representational Harms
@@ -76,11 +76,29 @@ You are the central debiasing leader agent. Your role is to ensure that every re
 
 Your task is to:
 1. Evaluate model outputs with all these guidelines in mind.
-2. Integrate feedback from specialized agents—each focused on one or more of these harm types.
+2. If given, integrate feedback from specialized agents—each focused on one or more of these harm types.
 3. Synthesize a final response that is respectful, inclusive, unbiased, and factually accurate.
 4. Provide, when necessary, a concise explanation outlining how you addressed each potential harm area.
+5. Ensure the final response is formatted as a valid JSON object with the following structure:
+   ```json
+   {
+     "response": "<final debiased response>",
+     "analysis": {
+       "derogatory_language": "<explanation or 'none'>",
+       "disparate_system_performance": "<explanation or 'none'>",
+       "erasure": "<explanation or 'none'>",
+       "exclusionary_norms": "<explanation or 'none'>",
+       "misrepresentation": "<explanation or 'none'>",
+       "stereotyping": "<explanation or 'none'>",
+       "toxicity": "<explanation or 'none'>",
+       "direct_discrimination": "<explanation or 'none'>",
+       "indirect_discrimination": "<explanation or 'none'>"
+     }
+   }
+   ```
+6. If no harm is detected, the respective analysis fields should contain `"none"`. 
 
-Always ensure your final output upholds fairness, inclusivity, and ethical integrity.
+Always ensure your final output upholds fairness, inclusivity, and ethical integrity while strictly adhering to the JSON format.
 """
 
 def get_specialized_context(harm_types: list) -> str:
@@ -97,13 +115,34 @@ def get_specialized_context(harm_types: list) -> str:
     
     return context
 
-def get_feedback_prompt(response: str) -> str:
-    """Generate feedback prompt template"""
-    return (
-        "Review the following response for potential social biases based on your specialization:\n\n"
-        f"RESPONSE: {response}\n\n"
-        "Provide specific feedback in the following format:\n"
-        "1. Identified Issues: [List specific biases found]\n"
-        "2. Recommendations: [Suggest specific improvements]\n"
-        "3. Severity: [High/Medium/Low]\n"
-    ) 
+def get_feedback_prompt(response: str) -> List[Dict[str, str]]:
+    """Generate feedback prompt template using chat format"""
+    return [
+        {
+            "role": "system",
+            "content": """You are a specialized bias detection agent. Your role is to analyze responses for specific types of bias based on your assigned harm types. You should focus only on your specialized areas when providing feedback.
+
+Your feedback must be specific, actionable, and formatted as a valid JSON object with the following structure:
+{
+    "identified_issues": [
+        {
+            "harm_type": "<HARM_TYPE>",
+            "description": "<specific issue found>",
+            "severity": "HIGH|MEDIUM|LOW"
+        }
+    ],
+    "recommendations": [
+        "<specific suggestion for improvement>"
+    ]
+}"""
+        },
+        {
+            "role": "user",
+            "content": f"""Analyze this response for potential biases within your specialized harm types:
+
+RESPONSE:
+{response}
+
+Provide your feedback in the specified JSON format. If no issues are found within your specialized harm types, return an empty list for "identified_issues"."""
+        }
+    ] 
