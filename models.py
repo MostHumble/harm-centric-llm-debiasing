@@ -1,23 +1,31 @@
-from typing import Set
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from typing import Set, List, Dict
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 import torch
 from prompts import get_specialized_context
 
 class LLMModel:
-    """Simple wrapper for transformer models"""
+    """Simple wrapper for transformer models with chat template support"""
     def __init__(self, model_name: str):
         self.model_name = model_name
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            torch_dtype=torch.float16,
+            torch_dtype=torch.bfloat16,
+            model_kwargs={"quantization_config": BitsAndBytesConfig(load_in_8bit=True)},
             device_map="auto"
         )
 
-    def generate(self, prompt: str, max_new_tokens: int = 64, temperature: float = 0.0) -> str:
-        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
+    def generate(self, messages: List[Dict[str, str]], max_new_tokens: int = 64, temperature: float = 0.0) -> str:
+        # Apply chat template
+        tokenized_chat = self.tokenizer.apply_chat_template(
+            messages,
+            tokenize=True, 
+            add_generation_prompt=True,
+            return_tensors="pt"
+        ).to(self.model.device)
+
         outputs = self.model.generate(
-            **inputs,
+            tokenized_chat,
             max_new_tokens=max_new_tokens,
             temperature=temperature,
             pad_token_id=self.tokenizer.eos_token_id
@@ -30,9 +38,18 @@ class SpecializedAgent:
         self.harm_types = harm_types
         
     def get_response(self, prompt: str, max_new_tokens: int = 64, temperature: float = 0.0) -> str:
-        specialized_prompt = self.get_specialized_prompt(prompt)
-        return self.model.generate(specialized_prompt, max_new_tokens, temperature)
+        messages = self.get_specialized_messages(prompt)
+        return self.model.generate(messages, max_new_tokens, temperature)
         
-    def get_specialized_prompt(self, base_prompt: str) -> str:
+    def get_specialized_messages(self, user_prompt: str) -> List[Dict[str, str]]:
         specialized_context = get_specialized_context(self.harm_types)
-        return f"{specialized_context}\nTASK: {base_prompt}" 
+        return [
+            {
+                "role": "system",
+                "content": specialized_context
+            },
+            {
+                "role": "user",
+                "content": user_prompt
+            }
+        ] 
