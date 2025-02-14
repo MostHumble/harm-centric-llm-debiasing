@@ -2,6 +2,7 @@
 torch>=2.0.0  # CUDA support included if available
 transformers>=4.30.0
 pyyaml>=6.0
+bitsandbytes>=0.40.0
 
 # Evaluation dependencies
 matplotlib>=3.7.0
