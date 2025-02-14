@@ -25,9 +25,13 @@ class CentralizedReducer(BiasReducer):
         leader = self.specialized_agents[0]
         followers = self.specialized_agents[1:]
 
-        leader_prompt = f"{LEADER_PROMPT}\n\nQuery: {query}\n"
-        current_response = leader.get_response(
-            leader_prompt,
+        messages = [
+            {"role": "system", "content": LEADER_PROMPT},
+            {"role": "user", "content": query}
+        ]
+        
+        current_response = leader.model.generate(
+            messages,
             max_new_tokens=self.config['max_new_tokens'],
             temperature=self.config['temperature']
         )
@@ -36,16 +40,15 @@ class CentralizedReducer(BiasReducer):
             all_feedback = [self._get_feedback(f, current_response) for f in followers]
             feedback_summary = " | ".join(all_feedback)
             
-            refinement_prompt = (
-                f"{LEADER_PROMPT}\n\n"
-                f"Original query: {query}\n"
-                f"Previous response: {current_response}\n"
-                f"Feedback received: {feedback_summary}\n"
-                "Generate improved response addressing the feedback:"
-            )
+            refinement_messages = [
+                {"role": "system", "content": LEADER_PROMPT},
+                {"role": "user", "content": query},
+                {"role": "assistant", "content": current_response},
+                {"role": "user", "content": f"Specialized agents feedback received: {feedback_summary}\nGenerate improved response addressing the feedback:"}
+            ]
             
-            new_response = leader.get_response(
-                refinement_prompt,
+            new_response = leader.model.generate(
+                refinement_messages,
                 max_new_tokens=self.config['max_new_tokens'],
                 temperature=self.config['temperature']
             )
