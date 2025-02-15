@@ -3,6 +3,7 @@ torch>=2.0.0  # CUDA support included if available
 transformers>=4.30.0
 pyyaml>=6.0
 bitsandbytes>=0.40.0
+huggingface-hub>=0.19.0  # For HF authentication
 
 # Evaluation dependencies
 matplotlib>=3.7.0

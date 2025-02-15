@@ -3,11 +3,16 @@ import json
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 import torch
 from prompts import get_specialized_context, get_feedback_prompt, LEADER_PROMPT
+from utils.auth import setup_hf_auth
 
 class LLMModel:
     """Simple wrapper for transformer models with chat template support"""
     def __init__(self, model_name: str):
-        self.model_name = model_name
+        # Setup HF auth before loading model
+        if not setup_hf_auth():
+            raise RuntimeError("Failed to authenticate with Hugging Face")
+            
+        self.model_name = model_name  
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
