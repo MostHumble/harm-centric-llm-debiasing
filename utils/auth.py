@@ -1,7 +1,6 @@
 from typing import Optional
 import os
-from transformers import HfFolder
-from huggingface_hub import login, HfApi
+from huggingface_hub import login, HfApi, HfFolder
 import yaml
 
 def setup_hf_auth(token: Optional[str] = None, token_path: str = "config/hf_token.yml") -> bool:
