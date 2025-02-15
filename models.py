@@ -11,13 +11,16 @@ class LLMModel:
         # Setup HF auth before loading model
         if not setup_hf_auth():
             raise RuntimeError("Failed to authenticate with Hugging Face")
-            
+        
+        #quantization_config = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_compute_dtype=torch.bfloat16)
+
         self.model_name = model_name  
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
             torch_dtype=torch.bfloat16,
-            model_kwargs={"quantization_config": BitsAndBytesConfig(load_in_8bit=True)},
+            trust_remote_code=True,
+            #quantization_config = quantization_config
             device_map="auto"
         )
 
@@ -30,13 +33,24 @@ class LLMModel:
             return_tensors="pt"
         ).to(self.model.device)
 
-        outputs = self.model.generate(
-            tokenized_chat,
-            max_new_tokens=max_new_tokens,
-            temperature=temperature,
-            pad_token_id=self.tokenizer.eos_token_id
-        )
-        return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+        if temperature > 0.0:
+            outputs = self.model.generate(
+                tokenized_chat,
+                max_new_tokens=max_new_tokens,
+                temperature=temperature,
+                pad_token_id=self.tokenizer.eos_token_id
+            )
+        else:
+            outputs = self.model.generate(
+                tokenized_chat,
+                max_new_tokens=max_new_tokens,
+                temperature=0.0,
+                do_sample=False,
+                pad_token_id=self.tokenizer.eos_token_id
+            )
+        # Ignore the generation prompt
+        return self.tokenizer.decode(outputs[len(tokenized_chat):], skip_special_tokens=True)
+        
 
 class SpecializedAgent:
     def __init__(self, model: LLMModel, harm_types: Set[str]):
@@ -83,7 +97,7 @@ class SpecializedAgent:
         except json.JSONDecodeError:
             raise ValueError("Invalid JSON format")
         
-    def get_response(self, prompt: str, max_new_tokens: int = 64, temperature: float = 0.0) -> str:
+    def get_response(self, prompt: str, max_new_tokens: int = 64, temperature: float = 0.0, feedback_prompt: bool = False) -> str:
         if self.is_leader:
             messages = [
                 {"role": "system", "content": LEADER_PROMPT},
@@ -91,7 +105,7 @@ class SpecializedAgent:
             ]
         else:
             # For feedback requests, use specialized feedback prompt
-            if "Analyze this response for potential biases" in prompt:
+            if feedback_prompt:
                 messages = get_feedback_prompt(prompt, list(self.harm_types))
             else:
                 # For other requests, use specialized context
@@ -113,15 +127,3 @@ class SpecializedAgent:
             response = self.model.generate(retry_messages, max_new_tokens, temperature)
             return self._validate_json_response(response)
         
-    def get_specialized_messages(self, user_prompt: str) -> List[Dict[str, str]]:
-        specialized_context = get_specialized_context(self.harm_types)
-        return [
-            {
-                "role": "system",
-                "content": specialized_context
-            },
-            {
-                "role": "user",
-                "content": user_prompt
-            }
-        ] 
