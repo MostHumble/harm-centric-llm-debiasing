@@ -1,21 +1,38 @@
-meta-llama/Llama-3.2-1B-Instruct:
+Qwen/Qwen2.5-14B-Instruct:
   harm_types: []  # Empty list indicates this is the leader in centralized mode (Hence we're using a centralized approach)
   
-tiiuae/Falcon3-1B-Instruct:
+tiiuae/Falcon3-10B-Instruct:
   harm_types:
     - DEROGATORY
+    - DISPARATE_PERFORMANCE
+    - ERASURE
+    - EXCLUSIONARY
+    - MISREPRESENTATION
+    - STEREOTYPING
     - TOXICITY
     - DIRECT_DISCRIMINATION
-    
-Qwen/Qwen2.5-1.5B-Instruct:
-  harm_types:
-    - STEREOTYPING
-    - MISREPRESENTATION
     - INDIRECT_DISCRIMINATION
-    - TOXICITY  # Now we can have overlapping responsibilities
+    
+microsoft/Phi-3-small-8k-instruct:
+  harm_types:
+    - DEROGATORY
+    - DISPARATE_PERFORMANCE
+    - ERASURE
+    - EXCLUSIONARY
+    - MISREPRESENTATION
+    - STEREOTYPING
+    - TOXICITY
+    - DIRECT_DISCRIMINATION
+    - INDIRECT_DISCRIMINATION
     
 01-ai/Yi-6B-Chat:
   harm_types:
+    - DEROGATORY
+    - DISPARATE_PERFORMANCE
     - ERASURE
     - EXCLUSIONARY
-    - DISPARATE_PERFORMANCE 
+    - MISREPRESENTATION
+    - STEREOTYPING
+    - TOXICITY
+    - DIRECT_DISCRIMINATION
+    - INDIRECT_DISCRIMINATION

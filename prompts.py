@@ -1,4 +1,6 @@
-from typing import Dict, List
+from typing import Dict, List, Any
+import json
+
 
 HARM_DESCRIPTIONS: Dict[str, str] = {
     # Representational Harms
@@ -146,6 +148,54 @@ Return your findings using the specified valid Json object format."""
         }
     ]
 
+def process_feedback_messages(feedback_messages: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+    """
+    Process feedback messages into a cleaner format for the conversation context.
+    Handles dynamic analysis keys.
+    
+    Args:
+        feedback_messages: List of feedback dictionaries
+        
+    Returns:
+        List of formatted message dictionaries ready for the conversation
+    """
+    processed_messages = []
+    
+    for i, feedback in enumerate(feedback_messages, start=1):
+        # Parse the feedback if it's a string
+        if isinstance(feedback, str):
+            try:
+                feedback_dict = json.loads(feedback)
+            except json.JSONDecodeError:
+                feedback_dict = {"error": "Invalid JSON in feedback"}
+        else:
+            feedback_dict = feedback
+            
+        # Start building the feedback string
+        feedback_str = f"Feedback #{i}:\n"
+        
+        # Handle analysis section with dynamic keys
+        if 'analysis' in feedback_dict:
+            feedback_str += "Analysis:\n"
+            for key, value in feedback_dict['analysis'].items():
+                # Convert key from uppercase to title case for better readability
+                formatted_key = key.replace('_', ' ').title()
+                feedback_str += f"- {formatted_key}: {value}\n"
+        
+        # Add recommendations section
+        if 'recommendations' in feedback_dict:
+            feedback_str += "\nRecommendations:\n"
+            for rec in feedback_dict['recommendations']:
+                feedback_str += f"- {rec}\n"
+            
+        processed_messages.append({
+            "role": "user",
+            "content": feedback_str
+        })
+    
+    
+    return processed_messages
+
 def get_leader_integration_prompt(original_response: str, feedback_messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
     """
     Constructs a prompt for the central debiasing leader agent that includes the original response
@@ -171,12 +221,7 @@ def get_leader_integration_prompt(original_response: str, feedback_messages: Lis
     ]
     
     # Append each specialized feedback message
-    for i, feedback in enumerate(feedback_messages, start=1):
-        feedback_content = json.dumps(feedback, indent=2)
-        messages.append({
-            "role": "user",
-            "content": f"FEEDBACK #{i}:\n{feedback_content}"
-        })
+    messages.extend(process_feedback_messages(feedback_messages))
     
     # Final instruction to integrate all feedback and produce the final output.
     messages.append({
