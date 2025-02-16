@@ -135,7 +135,7 @@ Guidelines:
 • Provide clear, concise, and actionable feedback.
 • Use 'none' if no bias is detected in a category.
 • Ensure strict adherence to the JSON format.
-• Maintain consistent UPPERCASE notation for harm type keys."""
+• Use the exact same harm type keys in UPPERCASE as provided in the input list."""
         },
         {
             "role": "user",
