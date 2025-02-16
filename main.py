@@ -13,11 +13,7 @@ class MultiLLMDebiasing:
         for i, model_name in enumerate(harm_assignments.keys()):
             model = LLMModel(model_name)
             
-            # In centralized mode, first model (leader) gets all harm types
-            if strategy == "centralized" and i == 0:
-                harm_types = set(HARM_DESCRIPTIONS.keys())
-            else:
-                harm_types = set(harm_assignments.get(model_name, []))
+            harm_types = set(harm_assignments.get(model_name, []))
                 
             self.specialized_agents.append(SpecializedAgent(model, harm_types))
         
@@ -27,9 +23,9 @@ class MultiLLMDebiasing:
         else:
             self.reducer = DecentralizedReducer(self.specialized_agents, config)
 
-    def get_debiased_response(self, query: str) -> str:
+    def get_debiased_response(self, query: str, return_lineage: bool = False, return_feedback: bool = False) -> str:
         """Get debiased response using the initialized strategy"""
-        return self.reducer.reduce_bias(query)
+        return self.reducer.reduce_bias(query, return_lineage, return_feedback)
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Multi-LLM Debiasing Framework')
@@ -38,15 +34,18 @@ def parse_args():
                        help='YAML file defining models and their harm types')
     parser.add_argument('--max-rounds', type=int, default=3,
                        help='Maximum number of refinement rounds')
-    parser.add_argument('--max-new-tokens', type=int, default=64,
+    parser.add_argument('--max-new-tokens', type=int, default=512,
                        help='Maximum number of new tokens for response generation')
-    parser.add_argument('--feedback-tokens', type=int, default=128,
+    parser.add_argument('--feedback-tokens', type=int, default=512,
                        help='Maximum number of tokens for feedback generation')
     parser.add_argument('--temperature', type=float, default=0.0,
                        help='Temperature for response generation')
     parser.add_argument('--query', type=str, required=True,
                        help='Input query to debias')
-    
+    parser.add_argument('--return-lineage', action='store_true',
+                       help='Return lineage of debiasing steps')
+    parser.add_argument('--return-feedback', action='store_true',
+                       help='Return feedback from followers')
     args = parser.parse_args()
     
     return args
@@ -118,9 +117,13 @@ def main():
         strategy=strategy
     )
     
-    response = debiasing.get_debiased_response(args.query)
+    outputs = debiasing.get_debiased_response(args.query, args.return_lineage, args.return_feedback)
     print(f"\nStrategy: {strategy}")
-    print(f"Response: {response}")
+    print(f"Response: {outputs.final_response}")
+    if args.return_lineage:
+        print(f"Lineage: {outputs.lineage}")
+    if args.return_feedback:
+        print(f"Feedback: {outputs.feedback}")
 
 if __name__ == "__main__":
     main() 
