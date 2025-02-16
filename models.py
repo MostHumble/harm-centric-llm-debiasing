@@ -2,8 +2,9 @@ from typing import Set, List, Dict
 import json
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 import torch
-from prompts import get_specialized_context, get_feedback_prompt, LEADER_PROMPT
+from prompts import get_specialized_context, get_feedback_prompt, get_leader_integration_prompt
 from utils.auth import setup_hf_auth
+import re  # Add this import at the top
 
 class LLMModel:
     """Simple wrapper for transformer models with chat template support"""
@@ -44,12 +45,11 @@ class LLMModel:
             outputs = self.model.generate(
                 tokenized_chat,
                 max_new_tokens=max_new_tokens,
-                temperature=0.0,
                 do_sample=False,
                 pad_token_id=self.tokenizer.eos_token_id
             )
         # Ignore the generation prompt
-        return self.tokenizer.decode(outputs[len(tokenized_chat):], skip_special_tokens=True)
+        return self.tokenizer.decode(outputs[0][len(tokenized_chat[0]):], skip_special_tokens=True)
         
 
 class SpecializedAgent:
@@ -58,8 +58,14 @@ class SpecializedAgent:
         self.harm_types = harm_types
         self.is_leader = len(harm_types) == 9  # All harm types assigned
         
-    def _validate_json_response(self, json_str: str) -> str:
-        """Validate JSON format based on agent role"""
+    def _validate_json_response(self, response: str) -> str:
+        """Extract and validate JSON from model response that may contain markdown formatting"""
+        # First try to find JSON within triple backticks
+        match = re.search(r'```(?:json)?\n(.*?)\n```', response, re.DOTALL)
+        
+        # If found within backticks, use that, otherwise try the full response
+        json_str = match.group(1).strip() if match else response.strip()
+        
         try:
             response_obj = json.loads(json_str)
             
@@ -82,30 +88,25 @@ class SpecializedAgent:
                 if not isinstance(response_obj, dict):
                     raise ValueError("Response must be a JSON object")
                 
-                if "identified_issues" not in response_obj:
-                    raise ValueError("Missing identified_issues field")
+                if "analysis" not in response_obj or "recommendations" not in response_obj:
+                    raise ValueError("Missing required fields")
                 
                 # Validate issues are within assigned harm types with correct casing
-                for issue in response_obj["identified_issues"]:
-                    if "harm_type" not in issue:
-                        raise ValueError("Missing harm_type in issue")
-                    if issue["harm_type"] not in self.harm_types:
-                        raise ValueError(f"Unauthorized harm type: {issue['harm_type']}")
+                for harm_type in self.harm_types:
+                    if harm_type not in response_obj["analysis"]:
+                        raise ValueError(f"Missing analysis for {harm_type}")
                 
-                return json_str
+                return json.dumps(response_obj)  # Return formatted JSON string
             
-        except json.JSONDecodeError:
-            raise ValueError("Invalid JSON format")
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON format: {str(e)}")
         
-    def get_response(self, prompt: str, max_new_tokens: int = 64, temperature: float = 0.0, feedback_prompt: bool = False) -> str:
+    def get_response(self, prompt: str, max_new_tokens: int = 64, temperature: float = 0.0, feedback_messages: List[Dict[str, str]] = None) -> str:
         if self.is_leader:
-            messages = [
-                {"role": "system", "content": LEADER_PROMPT},
-                {"role": "user", "content": prompt}
-            ]
+            messages = get_leader_integration_prompt(prompt, feedback_messages)
         else:
             # For feedback requests, use specialized feedback prompt
-            if feedback_prompt:
+            if feedback_messages is None:
                 messages = get_feedback_prompt(prompt, list(self.harm_types))
             else:
                 # For other requests, use specialized context
@@ -120,6 +121,7 @@ class SpecializedAgent:
             return self._validate_json_response(response)
         except ValueError as e:
             # Retry with explicit format reminder
+            print(f'Invalid JSON response: {response}')
             retry_messages = messages + [
                 {"role": "assistant", "content": response},
                 {"role": "user", "content": "Your response was not in the correct JSON format. Please reformat your response."}
