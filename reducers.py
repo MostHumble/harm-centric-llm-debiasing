@@ -1,6 +1,14 @@
-from typing import List, Dict
+from typing import List, Dict, Union, Tuple, Optional
 from models import SpecializedAgent
 from prompts import get_feedback_prompt, LEADER_PROMPT
+from dataclasses import dataclass
+
+@dataclass
+class ReducerOutput:
+    """Output class for BiasReducer results"""
+    final_response: str
+    lineage: Optional[List[str]] = None
+    feedback: Optional[List[List[str]]] = None
 
 class BiasReducer:
     """Base class for different debiasing strategies"""
@@ -21,13 +29,26 @@ class BiasReducer:
 
 class CentralizedReducer(BiasReducer):
     """Implements leader-follower debiasing approach"""
-    def reduce_bias(self, query: str) -> str:
+    def reduce_bias(
+        self, 
+        query: str, 
+        return_lineage: bool = False, 
+        return_feedback: bool = False
+    ) -> Union[str, ReducerOutput]:
         leader = self.specialized_agents[0]
         followers = self.specialized_agents[1:]
-
+        
+        lineage = [] if return_lineage else None
+        feedback = [] if return_feedback else None
+    
         for _ in range(self.config['max_rounds']):
             feedback_messages = [self._get_feedback(f, query) for f in followers]
             
+            if return_lineage:
+                lineage.append(query)
+            if return_feedback:
+                feedback.append(feedback_messages)
+                
             new_response = leader.get_response(
                 query,
                 max_new_tokens=self.config['max_new_tokens'],
@@ -39,7 +60,11 @@ class CentralizedReducer(BiasReducer):
                 break
             query = new_response
 
-        return query
+        return ReducerOutput(
+                final_response=query,
+                lineage=lineage,
+                feedback=feedback
+            )
 
 class DecentralizedReducer(BiasReducer):
     def reduce_bias(self, query: str) -> str:
