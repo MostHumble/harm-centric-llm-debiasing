@@ -5,6 +5,7 @@ import torch
 from prompts import get_specialized_context, get_feedback_prompt, get_leader_integration_prompt
 from utils.auth import setup_hf_auth
 import re  # Add this import at the top
+from prompts import HARM_DESCRIPTIONS
 
 class LLMModel:
     """Simple wrapper for transformer models with chat template support"""
@@ -55,8 +56,8 @@ class LLMModel:
 class SpecializedAgent:
     def __init__(self, model: LLMModel, harm_types: Set[str]):
         self.model = model
-        self.harm_types = harm_types
-        self.is_leader = len(harm_types) == 9  # All harm types assigned
+        self.harm_types = set(HARM_DESCRIPTIONS.keys())
+        self.is_leader = len(harm_types) == 0  # No harm types assigned (leader)
         
     def _validate_json_response(self, response: str) -> str:
         """Extract and validate JSON from model response that may contain markdown formatting"""
@@ -124,7 +125,7 @@ class SpecializedAgent:
             print(f'Invalid JSON response: {response}')
             retry_messages = messages + [
                 {"role": "assistant", "content": response},
-                {"role": "user", "content": "Your response was not in the correct JSON format. Please reformat your response."}
+                {"role": "user", "content": "Make sure to follow the correct JSON format and use the exact same harm type keys in UPPERCASE as provided in the input list. Please reformat your response."}
             ]
             response = self.model.generate(retry_messages, max_new_tokens, temperature)
             return self._validate_json_response(response)
