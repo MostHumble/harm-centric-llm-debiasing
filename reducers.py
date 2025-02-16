@@ -9,13 +9,11 @@ class BiasReducer:
         self.config = config
 
     def _get_feedback(self, agent: SpecializedAgent, response: str) -> str:
-        # To fix: We already have the chat format here, so we must clean this
-        feedback_prompt = get_feedback_prompt(response, list(agent.harm_types))
+        
         return agent.get_response(
-            feedback_prompt,
+            response,
             max_new_tokens=self.config['feedback_tokens'],
             temperature=self.config['temperature'],
-            feedback_prompt=True
         )
 
     def reduce_bias(self, query: str) -> str:
@@ -26,35 +24,22 @@ class CentralizedReducer(BiasReducer):
     def reduce_bias(self, query: str) -> str:
         leader = self.specialized_agents[0]
         followers = self.specialized_agents[1:]
-        
-        current_response = leader.get_response(
-            prompt=query,
-            max_new_tokens=self.config['max_new_tokens'],
-            temperature=self.config['temperature']
-        )
 
         for _ in range(self.config['max_rounds']):
-            all_feedback = [self._get_feedback(f, current_response) for f in followers]
-            feedback_summary = " | ".join(all_feedback)
+            feedback_messages = [self._get_feedback(f, query) for f in followers]
             
-            refinement_messages = [
-                {"role": "system", "content": LEADER_PROMPT},
-                {"role": "user", "content": query},
-                {"role": "assistant", "content": current_response},
-                {"role": "user", "content": f"Specialized agents feedback received: {feedback_summary}\nGenerate improved response addressing the feedback:"}
-            ]
-            
-            new_response = leader.model.generate(
-                refinement_messages,
+            new_response = leader.get_response(
+                query,
                 max_new_tokens=self.config['max_new_tokens'],
-                temperature=self.config['temperature']
+                temperature=self.config['temperature'],
+                feedback_messages=feedback_messages
             )
             
-            if new_response == current_response:
+            if new_response == query:
                 break
-            current_response = new_response
+            query = new_response
 
-        return current_response
+        return query
 
 class DecentralizedReducer(BiasReducer):
     def reduce_bias(self, query: str) -> str:
