@@ -1,9 +1,11 @@
 from typing import List, Dict, Tuple
 import argparse
 import yaml
+from tqdm import tqdm 
 from models import LLMModel, SpecializedAgent
 from reducers import CentralizedReducer, DecentralizedReducer
 from prompts import HARM_DESCRIPTIONS
+from utils.io_utils import IOHandler, DebiasedOutput
 
 class MultiLLMDebiasing:
     def __init__(self, harm_assignments: Dict[str, List[str]], config: Dict, strategy: str = "centralized"):
@@ -27,103 +29,84 @@ class MultiLLMDebiasing:
         """Get debiased response using the initialized strategy"""
         return self.reducer.reduce_bias(query, return_lineage, return_feedback)
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Multi-LLM Debiasing Framework')
     
     parser.add_argument('--harm-assignments', type=str, required=True,
                        help='YAML file defining models and their harm types')
+    parser.add_argument('--input-file', type=str, required=True,
+                       help='Input file containing queries to debias')
+    parser.add_argument('--output-file', type=str, required=True,
+                       help='Output file to save debiased responses')
     parser.add_argument('--max-rounds', type=int, default=3,
                        help='Maximum number of refinement rounds')
     parser.add_argument('--max-new-tokens', type=int, default=512,
                        help='Maximum number of new tokens for response generation')
-    parser.add_argument('--feedback-tokens', type=int, default=512,
-                       help='Maximum number of tokens for feedback generation')
     parser.add_argument('--temperature', type=float, default=0.0,
                        help='Temperature for response generation')
-    parser.add_argument('--query', type=str, required=True,
-                       help='Input query to debias')
     parser.add_argument('--return-lineage', action='store_true',
                        help='Return lineage of debiasing steps')
     parser.add_argument('--return-feedback', action='store_true',
                        help='Return feedback from followers')
+    parser.add_argument('--include-metadata', action='store_true',
+                       help='Include metadata in output')
     args = parser.parse_args()
     
     return args
 
-def process_harm_assignments(config_path: str) -> Tuple[Dict[str, List[str]], str]:
-    """
-    Process and validate the harm assignments YAML file.
-    
-    Returns:
-        Tuple containing:
-        - Dictionary of harm assignments
-        - Strategy ('centralized' or 'decentralized')
-    
-    Raises:
-        ValueError: If harm assignments are invalid or don't cover all harm types
-    """
-    # Load YAML config
-    with open(config_path) as f:
-        harm_config = yaml.safe_load(f)
-    
-    harm_assignments = {
-        model: config['harm_types']
-        for model, config in harm_config.items()
-    }
-    
-    # Determine strategy
-    empty_count = sum(1 for harms in harm_assignments.values() if not harms)
-    
-    if empty_count > 1:
-        raise ValueError("Invalid configuration: At most one model can have empty harm assignments")
-    
-    if empty_count == 1:
-        strategy = 'centralized'
-    else:
-        strategy = 'decentralized'
-    
-    # Validate that all harm types are covered
-    all_assigned_harms = set()
-    for harms in harm_assignments.values():
-        all_assigned_harms.update(harms)
-    
-    all_possible_harms = set(HARM_DESCRIPTIONS.keys())
-    
-    uncovered_harms = all_possible_harms - all_assigned_harms
-    if uncovered_harms:
-        raise ValueError(f"The following harm types are not covered by any model: {uncovered_harms}")
-    
-    unknown_harms = all_assigned_harms - all_possible_harms
-    if unknown_harms:
-        raise ValueError(f"The following assigned harm types are not recognized: {unknown_harms}")
-    
-    return harm_assignments, strategy
-
 def main():
     args = parse_args()
     
-    harm_assignments, strategy = process_harm_assignments(args.harm_assignments)
+    # Process harm assignments
+    harm_assignments, strategy = IOHandler.process_harm_assignments(args.harm_assignments)
+
+    # Load queries
+    queries = IOHandler.load_queries(args.input_file)
     
     config = {
         'max_rounds': args.max_rounds,
         'max_new_tokens': args.max_new_tokens,
-        'feedback_tokens': args.feedback_tokens,
         'temperature': args.temperature
     }
-    
+
     debiasing = MultiLLMDebiasing(
         harm_assignments=harm_assignments,
         config=config,
         strategy=strategy
     )
     
-    outputs = debiasing.get_debiased_response(args.query, args.return_lineage, args.return_feedback)
-    print(f"\nStrategy: {strategy}")
-    print(f"Response: {outputs.final_response}")
-    if args.return_lineage:
-        print(f"Lineage: {outputs.lineage}")
-    if args.return_feedback:
-        print(f"Feedback: {outputs.feedback}")
+    # Process queries and collect outputs
+    outputs = []
+    for i, query in tqdm(enumerate(queries), desc="Processing queries", total=len(queries)):
+        
+        try:
+            result = debiasing.get_debiased_response(
+                query, 
+                args.return_lineage, 
+                args.return_feedback
+            )
+            
+        except Exception as e:
+            print(f"Error processing query {i}: {e}")
+            continue    
+
+        if args.include_metadata:
+            metadata = {"query_index": i}
+        else:
+            metadata = None
+
+        output = DebiasedOutput(
+            original_query=query,
+            debiased_response=result.response,
+            lineage=result.lineage,
+            feedback=result.feedback,
+            metadata=metadata
+        )
+        outputs.append(output)
+    
+    # Save results
+    IOHandler.save_outputs(outputs, args.output_file)
 
 if __name__ == "__main__":
     main() 
