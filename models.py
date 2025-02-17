@@ -20,7 +20,7 @@ class LLMModel:
         self.tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            torch_dtype=torch.bfloat16,
+            torch_dtype='auto',
             trust_remote_code=True,
             #quantization_config = quantization_config
             device_map="auto"
