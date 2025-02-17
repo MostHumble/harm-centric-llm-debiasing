@@ -98,7 +98,7 @@ def main():
 
         output = DebiasedOutput(
             original_query=query,
-            debiased_response=result.response,
+            debiased_response=result.final_response,
             lineage=result.lineage,
             feedback=result.feedback,
             metadata=metadata
