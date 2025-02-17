@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List, Union, Dict, Any, Tuple
 from dataclasses import dataclass, asdict
 from prompts import HARM_DESCRIPTIONS
+import pandas as pd
 
 @dataclass
 class DebiasedOutput:
@@ -49,17 +50,23 @@ class IOHandler:
                     raise ValueError("Invalid JSON format: Expected a list or dict with 'queries' key")
                     
         elif input_path.suffix == '.csv':
-            with open(input_path, 'r', encoding='utf-8') as f:
-                reader = csv.reader(f)
-                return [row[0] for row in reader if row]  # Assumes queries in first column
+            data = pd.read_csv(input_path)
+            if "query" in data.columns:
+                return data["query"].tolist()
+            else:
+                raise ValueError("Expected a pandas DataFrame with 'query' column")
                 
         elif input_path.suffix == '.pkl':
             with open(input_path, 'rb') as f:
                 data = pickle.load(f)
                 if isinstance(data, list):
                     return data
+                elif isinstance(data, dict) and "queries" in data:
+                    return data["queries"]
+                elif isinstance(data, pd.DataFrame) and "query" in data.columns:
+                    return data["query"].tolist()
                 else:
-                    raise ValueError("Invalid pickle format: Expected a list of queries")
+                    raise ValueError("Invalid pickle format: Expected a list or dict with 'queries' key, or a pandas DataFrame with 'query' column")
                     
         elif input_path.suffix == '.txt':
             with open(input_path, 'r', encoding='utf-8') as f:
