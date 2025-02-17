@@ -20,7 +20,7 @@ class BiasReducer:
         
         return agent.get_response(
             response,
-            max_new_tokens=self.config['feedback_tokens'],
+            max_new_tokens=self.config['max_new_tokens'],
             temperature=self.config['temperature'],
         )
 

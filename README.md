@@ -61,9 +61,8 @@ python main.py \
 ## Configuration
 
 - `max_rounds`: Maximum iterations for refinement (default: 3)
-- `max_new_tokens`: Maximum tokens for response generation (default: 64)
-- `feedback_tokens`: Maximum tokens for feedback (default: 128)
-- `temperature`: Sampling temperature (default: 0.0)
+- `max_new_tokens`: Maximum tokens for response generation (default: 512)
+- `temperature`: Sampling temperature (default: 0.0 (Greedy))
 
 ## License
 
