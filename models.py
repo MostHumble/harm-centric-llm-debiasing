@@ -24,8 +24,10 @@ class LLMModel:
             trust_remote_code=True,
             #quantization_config = quantization_config
             device_map="auto"
-        )
+        ).eval()
+        self.model = torch.compile(self.model, mode="max-autotune")
 
+    @torch.inference_mode()
     def generate(self, messages: List[Dict[str, str]], max_new_tokens: int = 64, temperature: float = 0.0) -> str:
         # Apply chat template
         tokenized_chat = self.tokenizer.apply_chat_template(
