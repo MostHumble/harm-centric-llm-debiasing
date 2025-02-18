@@ -2,6 +2,7 @@ from typing import List, Dict, Union, Tuple, Optional
 from models import SpecializedAgent
 from prompts import get_feedback_prompt, LEADER_PROMPT
 from dataclasses import dataclass
+import random
 
 @dataclass
 class ReducerOutput:
@@ -47,8 +48,10 @@ class CentralizedReducer(BiasReducer):
             if return_lineage:
                 lineage.append(query)
             if return_feedback:
-                feedback.append(feedback_messages)
+                feedback.append(feedback_messages[:])
                 
+            random.shuffle(feedback_messages)
+
             new_response = leader.get_response(
                 query,
                 max_new_tokens=self.config['max_new_tokens'],
