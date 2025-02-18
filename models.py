@@ -56,10 +56,11 @@ class LLMModel:
         
 
 class SpecializedAgent:
-    def __init__(self, model: LLMModel, harm_types: Set[str]):
+    def __init__(self, model: LLMModel, harm_types: Set[str], strategy: str):
         self.model = model
         self.harm_types = set(HARM_DESCRIPTIONS.keys())
         self.is_leader = len(harm_types) == 0  # No harm types assigned (leader)
+        self.strategy = strategy
         
     def _validate_json_response(self, response: str) -> str:
         """Extract and validate JSON from model response that may contain markdown formatting"""
@@ -105,18 +106,22 @@ class SpecializedAgent:
             raise ValueError(f"Invalid JSON format: {str(e)}")
         
     def get_response(self, prompt: str, max_new_tokens: int = 64, temperature: float = 0.0, feedback_messages: List[Dict[str, str]] = None) -> str:
-        if self.is_leader:
-            messages = get_leader_integration_prompt(prompt, feedback_messages)
-        else:
-            # For feedback requests, use specialized feedback prompt
-            if feedback_messages is None:
-                messages = get_feedback_prompt(prompt, list(self.harm_types))
+        
+        if self.strategy == "centralized":
+            if self.is_leader:
+                # Should return analysis and response while integrating feedback
+                messages = get_leader_integration_prompt(prompt, feedback_messages)
             else:
-                # For other requests, use specialized context
-                messages = [
-                    {"role": "system", "content": get_specialized_context(list(self.harm_types))},
-                    {"role": "user", "content": prompt}
-                ]
+                # Should return analysis and recommendations
+                messages = get_feedback_prompt(prompt, list(self.harm_types))
+
+        else:
+            if feedback_messages is None:   
+                # Should return response and analysis
+                messages = get_initiale_response(prompt, list(self.harm_types))
+            else:
+                # Should return analysis and recommendations
+                messages = get_feedback_prompt(prompt, list(self.harm_types))
         
         response = self.model.generate(messages, max_new_tokens, temperature)
         

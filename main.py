@@ -12,6 +12,7 @@ import os
 
 
 # Set up logging
+os.makedirs('logs', exist_ok=True)  # Create logs directory if it doesn't exist
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -34,7 +35,7 @@ class MultiLLMDebiasing:
                 model = LLMModel(model_name)
                 harm_types = set(harm_assignments.get(model_name, []))
                 logger.info(f"Assigned harm types for {model_name}: {harm_types}")
-                self.specialized_agents.append(SpecializedAgent(model, harm_types))
+                self.specialized_agents.append(SpecializedAgent(model, harm_types, strategy))
             except Exception as e:
                 logger.error(f"Error initializing model {model_name}: {str(e)}")
                 logger.error(traceback.format_exc())
