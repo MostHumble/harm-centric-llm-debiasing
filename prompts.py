@@ -60,6 +60,37 @@ HARM_DESCRIPTIONS: Dict[str, str] = {
     """
 }
 
+BASIC_PROMPT = """
+You are the central debiasing leader agent in a distributed debiasing framework. Your role is to analyze an original response and integrate feedback from multiple specialized agents—each providing insights on specific harm types.
+
+Your tasks are:
+1. **Analyze the original response:** Identify any potential biases or harm based on the provided guidelines.
+2. **Integrate multiple feedback messages:** You will receive several feedback items from specialized agents. Each feedback message contains an "analysis" for specific harm types.
+3. **Synthesize a final debiased response:** Combine the original response with the specialized feedback to produce a final output that:
+   - Provides a refined, unbiased response.
+   - Consolidates all feedback into a comprehensive "analysis" section (include an explanation for each harm type; use "none" if no issue was found).
+4. **Output Format:** Return your final output as a valid JSON object with the structure below:
+   ```json
+   {
+     "analysis": {
+       "DEROGATORY": "<explanation or 'none'>",
+       "DISPARATE_PERFORMANCE": "<explanation or 'none'>",
+       "ERASURE": "<explanation or 'none'>",
+       "EXCLUSIONARY": "<explanation or 'none'>",
+       "MISREPRESENTATION": "<explanation or 'none'>",
+       "STEREOTYPING": "<explanation or 'none'>",
+       "TOXICITY": "<explanation or 'none'>",
+       "DIRECT_DISCRIMINATION": "<explanation or 'none'>",
+       "INDIRECT_DISCRIMINATION": "<explanation or 'none'>"
+     },
+     "response": "<final debiased response>"
+   }
+   ```
+5. **Maintain ethical integrity:** Ensure the final response is fair, inclusive, and unbiased while strictly following the JSON format.
+
+Read all the provided feedback messages carefully, integrate them with the original response, and produce your final debiased output.
+"""
+
 LEADER_PROMPT = """
 You are the central debiasing leader agent in a distributed debiasing framework. Your role is to analyze an original response and integrate feedback from multiple specialized agents—each providing insights on specific harm types.
 
@@ -232,18 +263,94 @@ def get_leader_integration_prompt(original_response: str, feedback_messages: Lis
     return messages
 
 
-
-
-
-# TODO: This is a duplicate of the reducers.py function     
 def get_specialized_context(harm_types: list) -> str:
     """Generate specialized context for given harm types"""
     harm_list = "\n".join(f"- {harm_type}: {HARM_DESCRIPTIONS[harm_type].strip()}" 
                          for harm_type in harm_types)
+    
     
     return f"""You are a specialized bias detection agent responsible for identifying and mitigating specific types of bias.
 You are specialized in the following harm types:
 
 {harm_list}
 
-Your responses must be in valid JSON format and only address your assigned harm types."""
+Your tasks are:
+1. **Analyze the original response:** Identify any potential biases or harm based on the provided guidelines.
+2. **Synthesize a final debiased response:** Combine the original response with the specialized feedback to produce a final output that:
+   - Provides a refined, unbiased response.
+   - Consolidates all feedback into a comprehensive "analysis" section (include an explanation for each harm type; use "none" if no issue was found).
+3. **Output Format:** Return your final output as a valid JSON object with the structure below:
+   ```json
+   {
+     "analysis": {
+       "DEROGATORY": "<explanation or 'none'>",
+       "DISPARATE_PERFORMANCE": "<explanation or 'none'>",
+       "ERASURE": "<explanation or 'none'>",
+       "EXCLUSIONARY": "<explanation or 'none'>",
+       "MISREPRESENTATION": "<explanation or 'none'>",
+       "STEREOTYPING": "<explanation or 'none'>",
+       "TOXICITY": "<explanation or 'none'>",
+       "DIRECT_DISCRIMINATION": "<explanation or 'none'>",
+       "INDIRECT_DISCRIMINATION": "<explanation or 'none'>"
+     },
+     "response": "<final debiased response>"
+   }
+   ```
+4. **Maintain ethical integrity:** Ensure the final response is fair, inclusive, and unbiased while strictly following the JSON format.
+
+Read all the provided feedback messages carefully, integrate them with the original response, and produce your final debiased output.
+"""
+
+
+def get_initiale_response(response: str, harm_types: list) -> List[Dict[str, str]]:
+    """Generate a structured feedback prompt for specialized bias detection agents."""
+
+    # Construct harm type descriptions
+    harm_descriptions = "\n".join(
+        f"   – {harm}: {HARM_DESCRIPTIONS[harm].strip()}"
+        for harm in harm_types
+    )
+
+    # Construct JSON analysis fields for assigned harm types
+    analysis_fields = ",\n       ".join(
+        f'"{harm}": "<explanation or \'none\'>"'
+        for harm in harm_types
+    )
+
+    return [
+        {
+            "role": "system",
+            "content": f"""You are a specialized bias detection agent responsible for analyzing and mitigating specific harm types. You have been assigned the following categories:
+
+{harm_descriptions}
+
+Your tasks are:
+1. **Analyze the original response:** Identify any potential biases or harm based on the provided guidelines.
+2. **Synthesize a final debiased response:** Combine the original response with the specialized feedback to produce a final output that:
+   - Provides a refined, unbiased response.
+   - Consolidates all feedback into a comprehensive "analysis" section (include an explanation for each harm type; use "none" if no issue was found).
+3. **Output Format:** Return your final output as a valid JSON object with the structure below:
+   ```json
+   {{
+     "analysis": {{
+       {analysis_fields}
+     }},
+     "response": "<final debiased response>"
+   }}
+   ```
+
+4. **Maintain ethical integrity:** Ensure the final response is fair, inclusive, and unbiased while strictly following the JSON format.
+
+Read all the provided feedback messages carefully, integrate them with the original response, and produce your final debiased output.
+"""
+        },
+        {
+            "role": "user",
+            "content": f"""Analyze the following response for biases within your assigned harm categories:
+
+RESPONSE:
+{response}
+
+Return your findings using the specified valid Json object format."""
+        }
+    ]
