@@ -103,7 +103,7 @@ class SpecializedAgent:
                 return json.dumps(response_obj)  # Return formatted JSON string
             
         except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON format: {str(e)}")
+            raise ValueError(f"Model {self.model.model_name} returned invalid JSON format: {str(e)}")
         
     def get_response(self, prompt: str, max_new_tokens: int = 64, temperature: float = 0.0, feedback_messages: List[Dict[str, str]] = None) -> str:
         
