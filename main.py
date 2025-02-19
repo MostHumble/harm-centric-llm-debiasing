@@ -86,6 +86,8 @@ def parse_args():
     parser.add_argument('--log-level', type=str, default='INFO',
                        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
                        help='Set the logging level')
+    parser.add_argument('--error-threshold', type=int, default=50,
+                       help='Threshold for number of errors')                   
     args = parser.parse_args()
     
     return args
@@ -96,6 +98,8 @@ def main():
     # Set log level from arguments
     logger.setLevel(getattr(logging, args.log_level))
     logger.info(f"Starting debiasing process with args: {args}")
+
+    error_threshold = 0
     
     try:
         # Process harm assignments
@@ -128,10 +132,14 @@ def main():
                     args.return_lineage, 
                     args.return_feedback
                 )
+                error_threshold = 0
                 
             except Exception as e:
                 logger.error(f"Error processing query {i}: {str(e)}")
                 logger.error(traceback.format_exc())
+                error_threshold += 1
+                if error_threshold > args.error_threshold:
+                    raise e
                 continue    
 
             if args.include_metadata:
