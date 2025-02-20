@@ -58,8 +58,8 @@ class LLMModel:
 class SpecializedAgent:
     def __init__(self, model: LLMModel, harm_types: Set[str], strategy: str):
         self.model = model
-        self.harm_types = set(HARM_DESCRIPTIONS.keys())
         self.is_leader = len(harm_types) == 0  # No harm types assigned (leader)
+        self.harm_types = harm_types if not(self.is_leader) else set(HARM_DESCRIPTIONS.keys())
         self.strategy = strategy
         
     def _validate_json_response(self, response: str) -> str:
@@ -72,36 +72,42 @@ class SpecializedAgent:
         
         try:
             response_obj = json.loads(json_str)
+            # Json validation
+            if not isinstance(response_obj, dict):
+                raise ValueError("Response must be a JSON object")
+
+            if self.strategy == "centralized":
             
-            if self.is_leader:
-                # Leader validation
-                if not isinstance(response_obj, dict):
-                    raise ValueError("Response must be a JSON object")
-                
+                if self.is_leader:
+                    
+                    if "response" not in response_obj or "analysis" not in response_obj:
+                        raise ValueError("Missing required fields")
+                    
+                    # Validate all harm types are analyzed with correct casing
+                    for harm_type in self.harm_types:
+                        if harm_type not in response_obj["analysis"]:
+                            raise ValueError(f"Missing analysis for {harm_type}")
+                    
+                    return response_obj["response"]
+                else:
+                    
+                    if "analysis" not in response_obj or "recommendations" not in response_obj:
+                        raise ValueError("Missing required fields")
+                    
+                    # Validate issues are within assigned harm types with correct casing
+                    for harm_type in self.harm_types:
+                        if harm_type not in response_obj["analysis"]:
+                            raise ValueError(f"Missing analysis for {harm_type}")
+                    
+                    return json.dumps(response_obj)  # Return formatted JSON string
+            
+            elif self.strategy == "decentralized":
+
                 if "response" not in response_obj or "analysis" not in response_obj:
                     raise ValueError("Missing required fields")
                 
-                # Validate all harm types are analyzed with correct casing
-                for harm_type in self.harm_types:
-                    if harm_type not in response_obj["analysis"]:
-                        raise ValueError(f"Missing analysis for {harm_type}")
-                
                 return response_obj["response"]
-            else:
-                # Follower validation
-                if not isinstance(response_obj, dict):
-                    raise ValueError("Response must be a JSON object")
-                
-                if "analysis" not in response_obj or "recommendations" not in response_obj:
-                    raise ValueError("Missing required fields")
-                
-                # Validate issues are within assigned harm types with correct casing
-                for harm_type in self.harm_types:
-                    if harm_type not in response_obj["analysis"]:
-                        raise ValueError(f"Missing analysis for {harm_type}")
-                
-                return json.dumps(response_obj)  # Return formatted JSON string
-            
+
         except json.JSONDecodeError as e:
             raise ValueError(f"Model {self.model.model_name} returned invalid JSON format: {str(e)}")
         
@@ -115,7 +121,7 @@ class SpecializedAgent:
                 # Should return analysis and recommendations
                 messages = get_feedback_prompt(prompt, list(self.harm_types))
 
-        else:
+        elif self.strategy == "decentralized":
             if feedback_messages is None:   
                 # Should return response and analysis
                 messages = get_initiale_response(prompt, list(self.harm_types))
