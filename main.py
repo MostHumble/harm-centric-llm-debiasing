@@ -87,10 +87,19 @@ def parse_args():
                        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
                        help='Set the logging level')
     parser.add_argument('--error-threshold', type=int, default=50,
-                       help='Threshold for number of errors')                   
+                       help='Threshold for number of errors')    
+    parser.add_argument('--batch-size', type=int, default=100,
+                       help='Batch size for saving results')
     args = parser.parse_args()
     
     return args
+
+def save_batch(outputs: List[DebiasedOutput], output_file: str, batch_num: int):
+    """Save a batch of results with a numbered suffix"""
+    base, ext = os.path.splitext(output_file)
+    batch_file = f"{base}_batch_{batch_num}{ext}"
+    logger.info(f"Saving batch {batch_num} to {batch_file}")
+    IOHandler.save_outputs(outputs, batch_file)
 
 def main():
     args = parse_args()
@@ -99,8 +108,7 @@ def main():
     logger.setLevel(getattr(logging, args.log_level))
     logger.info(f"Starting debiasing process with args: {args}")
 
-    error_threshold = 0
-    
+    error_threshold = 0     
     try:
         # Process harm assignments
         harm_assignments, strategy = IOHandler.process_harm_assignments(args.harm_assignments)
@@ -124,8 +132,9 @@ def main():
         
         # Process queries and collect outputs
         outputs = []
+        current_batch = 1
+        
         for i, query in tqdm(enumerate(queries), desc="Processing queries", total=len(queries)):
-            
             try:
                 result = debiasing.get_debiased_response(
                     query, 
@@ -139,6 +148,9 @@ def main():
                 logger.error(traceback.format_exc())
                 error_threshold += 1
                 if error_threshold > args.error_threshold:
+                    # Save current batch before raising error
+                    if outputs:
+                        save_batch(outputs, args.output_file, current_batch)
                     raise e
                 continue    
 
@@ -155,10 +167,29 @@ def main():
                 metadata=metadata
             )
             outputs.append(output)
+            
+            # Save batch when we reach batch size
+            if len(outputs) >= args.batch_size:
+                save_batch(outputs, args.output_file, current_batch)
+                current_batch += 1
+                outputs = []  # Clear the outputs list after saving
         
-        # Save results
-        logger.info(f"Saving {len(outputs)} results to {args.output_file}")
-        IOHandler.save_outputs(outputs, args.output_file)
+        # Save any remaining outputs
+        if outputs:
+            save_batch(outputs, args.output_file, current_batch)
+            
+        # Combine all batches into final output file
+        logger.info(f"Combining all batches into final output file: {args.output_file}")
+        all_outputs = []
+        for batch in range(1, current_batch + 1):
+            base, ext = os.path.splitext(args.output_file)
+            batch_file = f"{base}_batch_{batch}{ext}"
+            if os.path.exists(batch_file):
+                batch_outputs = IOHandler.load_outputs(batch_file)
+                all_outputs.extend(batch_outputs)
+                os.remove(batch_file)  # Clean up batch file
+                
+        IOHandler.save_outputs(all_outputs, args.output_file)
         logger.info("Processing completed successfully")
 
     except Exception as e:

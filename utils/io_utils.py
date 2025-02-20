@@ -194,3 +194,20 @@ class IOHandler:
             raise ValueError(f"The following assigned harm types are not recognized: {unknown_harms}")
         
         return harm_assignments, strategy
+
+    @staticmethod
+    def load_outputs(input_file: Union[str, Path]) -> List[DebiasedOutput]:
+        """Load outputs from a file"""
+        input_path = Path(input_file)
+        
+        if input_path.suffix == '.json':
+            with open(input_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                return [DebiasedOutput(**item) for item in data]
+            
+        elif input_path.suffix == '.pkl':
+            with open(input_path, 'rb') as f:
+                return pickle.load(f)
+            
+        else:
+            raise ValueError(f"Unsupported input format: {input_path.suffix}")
