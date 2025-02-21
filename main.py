@@ -68,9 +68,9 @@ def parse_args():
     parser.add_argument('--harm-assignments', type=str, required=True,
                        help='YAML file defining models and their harm types')
     parser.add_argument('--input-file', type=str, required=True,
-                       help='Input file containing queries to debias')
+                       help='Input file containing queries to debias (json, csv, pkl, txt)')
     parser.add_argument('--output-file', type=str, required=True,
-                       help='Output file to save debiased responses')
+                       help='Output file to save debiased responses (json, csv, pkl)')
     parser.add_argument('--max-rounds', type=int, default=3,
                        help='Maximum number of refinement rounds')
     parser.add_argument('--max-new-tokens', type=int, default=512,
