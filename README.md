@@ -22,7 +22,7 @@ This framework implements two debiasing strategies:
 
 ```bash
 git clone https://github.com/yourusername/multi-llm-debiasing-framework.git
-cd multi-llm-debiasing-framework
+cd harm-centric-llm-debiasing
 
 # Install base package
 pip install -e .
