@@ -1,6 +1,6 @@
-# Multi-LLM Debiasing Framework
+# Harm-Centric Multi-Agent LLM Debiasing
 
-A framework for reducing bias in Large Language Models (LLMs) using multiple specialized agents in either centralized or decentralized configurations.
+Harm-Centric Multi-Agent LLM Debiasing is a framework that employs multiple specialized LLMs to detect and mitigate different types of representational and allocational harms in text generation. Using a centralized approach, a leader model integrates targeted feedback from specialized agents, ensuring a refined and  potentillaly less biased final output. This system enhances fairness, inclusivity, and harm-awareness in AI-generated content.
 
 ## Overview
 
@@ -102,10 +102,22 @@ streamlit run visualization/streamlit_app.py -- \
 ## Visualization Features
 
 The interactive visualization tool provides:
-- Side-by-side comparison with diff highlighting
-- Step-by-step response evolution
-- Detailed feedback analysis
+
 - Interactive example selection
+
+![image](https://github.com/user-attachments/assets/e0a66e81-90fb-493e-9e05-9ee428809244)
+
+- Side-by-side comparison with diff highlighting:
+
+![image](https://github.com/user-attachments/assets/158b2a33-e35e-4626-a004-a1373f06ac78)
+
+- Step-by-step response evolution:
+
+![image](https://github.com/user-attachments/assets/7660c0aa-b980-4fcd-9e95-185a77bafdda)
+
+- Detailed feedback analysis
+
+![image](https://github.com/user-attachments/assets/e60fdad1-36cf-4d7d-9cf2-24f73ad11f4b)
 
 ## Logging
 
