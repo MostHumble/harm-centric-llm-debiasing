@@ -13,7 +13,7 @@ tiiuae/Falcon3-10B-Instruct:
     - DIRECT_DISCRIMINATION
     - INDIRECT_DISCRIMINATION
     
-microsoft/Phi-3-small-8k-instruct:
+meta-llama/Llama-3.1-8B-Instruct:
   harm_types:
     - DEROGATORY
     - DISPARATE_PERFORMANCE
@@ -25,7 +25,7 @@ microsoft/Phi-3-small-8k-instruct:
     - DIRECT_DISCRIMINATION
     - INDIRECT_DISCRIMINATION
     
-01-ai/Yi-6B-Chat:
+unsloth/phi-4:
   harm_types:
     - DEROGATORY
     - DISPARATE_PERFORMANCE
