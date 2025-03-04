@@ -9,6 +9,30 @@ This framework implements two debiasing strategies:
 1. **Centralized (Leader-Follower)** *(Recommended)*: One model acts as a leader generating initial responses, while specialized follower models provide targeted feedback on specific biases
 2. **Decentralized (Consensus)**: Multiple models collaborate as equals, each specializing in detecting and mitigating a set of specified biases
 
+## Framework Capability Showcase
+
+This section demonstrates analytical possibilities enabled by our debiasing approach. While not core project components, these examples illustrate the framework's potential for bias investigation.
+
+### Iteration Analysis
+![Iteration Depth Distribution](figs/refinement_iter.png)  
+*Example Insight*: biases resolved within 2 iterations (Mean: 2.15), suggesting efficient convergence without over-processing.
+
+### Text Consistency Tracking
+![Sentence Variation Through Iterations](figs/sim_through_iter.png)  
+*Sample Application*: Monitoring semantic drift during debiasing. The stable plateau after iteration 1.4 indicates content stabilization while preserving core meaning.
+
+### Cross-Model Harm Detection
+![Harm Type Distribution](figs/combined_harm_analysis_with_stacked.png)  
+*Demonstrated Capabilities*:
+1. Comparative model analysis (Phi-4 vs Llama detection patterns)
+2. Bias class clustering
+3. Inter-model agreement metrics
+
+### Association Evolution Mapping
+![Word Association Changes](figs/association_analyze.png)  
+*Using [BiasAna](https://github.com/MostHumble/biasAna)*:  
+- Tracked stereotype reduction in "man"-"late" and "woman"-"hair" associations  
+
 ## Features
 
 - Multiple debiasing strategies with automatic selection
